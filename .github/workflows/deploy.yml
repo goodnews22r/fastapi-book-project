@@ -1,0 +1,58 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug SSH Setup
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ls -la ~/.ssh/deploy_key
+          echo "Key file created and permissions set"
+          
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_PRIVATE_KEY }}
+          script: |
+            echo "Current user: $(whoami)"
+            echo "Current directory: $(pwd)"
+            
+            # Check if repository exists
+            if [ ! -d "fastapi-book-project" ]; then
+              git clone https://github.com/tulbadex/fastapi-book-project.git
+            fi
+            
+            cd fastapi-book-project
+            # git pull
+            # Pull the latest code
+            git stash
+            git pull origin main
+            
+            # Set up virtual environment if it doesn't exist
+            # if [ ! -d "venv" ]; then
+            #   python3 -m venv venv
+            # fi
+            
+            # source venv/bin/activate
+            # pip install -r requirements.txt
+
+            # Stop existing containers
+            docker-compose down || true
+            
+            # Build and start containers
+            docker-compose up --build -d
+            
+            # Verify containers are running
+            docker ps
+            
+            # Restart FastAPI service
+            # sudo systemctl restart fastapi
